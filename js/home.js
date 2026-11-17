@@ -72,44 +72,77 @@ function dataLocale(data) {
 function recuperaEventiStoriciGranPremi(mese, giorno) {
     const chiave = `${mese}-${giorno}`;
     if (!cacheEventiStoriciGranPremi.has(chiave)) {
-        const anni = Array.from(
-            { length: new Date().getFullYear() - 2019 },
-            (_, indice) => 2020 + indice
-        );
-        const richiesta = Promise.all(anni.map(async anno => {
-            const dati = await recuperaDati(`/${anno}/races.json?limit=100`);
-            return (dati?.RaceTable?.Races || [])
-                .filter(gara => gara.date?.slice(5) === `${mese}-${giorno}`)
-                .map(gara => ({ ...gara, season: String(anno) }));
-        }))
-            .then(garePerStagione => garePerStagione.flat())
-            .then(async gare => {
-                const eventi = await Promise.all(gare.map(async gara => {
-                    const dati = await recuperaDati(
-                        `/${gara.season}/${gara.round}/results.json`
-                    );
-                    const vincitore = dati?.RaceTable?.Races?.[0]?.Results?.[0]?.Driver;
-                    if (!vincitore) {
-                        return null;
-                    }
+        const richiesta = (async () => {
+            const primaPagina = await recuperaDati("/races.json?limit=100&offset=0");
+            if (!primaPagina) {
+                return [];
+            }
 
-                    const pagina = new URL(gara.url);
-                    if (pagina.protocol !== "https:" || pagina.hostname !== "en.wikipedia.org") {
-                        return null;
-                    }
+            const limite = Number(primaPagina.limit);
+            const totale = Number(primaPagina.total);
+            if (!Number.isFinite(limite) || limite <= 0 || !Number.isFinite(totale)) {
+                throw new Error("Jolpica ha restituito una paginazione non valida per le gare.");
+            }
 
-                    return {
-                        anno: gara.season,
-                        testo: `${vincitore.givenName} ${vincitore.familyName} vinse il ${gara.raceName} del ${gara.season} a ${gara.Circuit.Location.locality}.`,
-                        titolo: gara.raceName,
-                        url: pagina.href,
-                        fonteUrl: `https://api.jolpi.ca/ergast/f1/${gara.season}/${gara.round}/results.json`
-                    };
-                }));
-                return eventi.filter(Boolean).sort(
-                    (prima, seconda) => Number(seconda.anno) - Number(prima.anno)
+            const gare = [];
+            let offset = Math.floor((totale - 1) / limite) * limite;
+            while (offset > 0) {
+                await new Promise(resolve => window.setTimeout(resolve, 450));
+                const dati = await recuperaDati(
+                    `/races.json?limit=${limite}&offset=${offset}`
                 );
-            });
+                if (!dati) {
+                    break;
+                }
+
+                gare.push(
+                    ...(dati.RaceTable?.Races || [])
+                        .filter(gara => gara.date?.slice(5) === `${mese}-${giorno}`)
+                );
+                if (gare.length >= 2) {
+                    break;
+                }
+
+                offset -= limite;
+            }
+
+            if (offset === 0) {
+                gare.push(
+                    ...(primaPagina.RaceTable?.Races || [])
+                        .filter(gara => gara.date?.slice(5) === `${mese}-${giorno}`)
+                );
+            }
+            gare.sort((prima, seconda) =>
+                Number(seconda.season) - Number(prima.season)
+            );
+
+            const eventi = await Promise.all(gare.slice(0, 2).map(async gara => {
+                const dati = await recuperaDati(
+                    `/${gara.season}/${gara.round}/results.json`
+                );
+                const vincitore = dati?.RaceTable?.Races?.[0]?.Results?.[0]?.Driver;
+                if (!vincitore) {
+                    return null;
+                }
+
+                const pagina = new URL(gara.url);
+                if (pagina.protocol !== "https:" || pagina.hostname !== "en.wikipedia.org") {
+                    return null;
+                }
+
+                return {
+                    anno: gara.season,
+                    testo:
+                        `${vincitore.givenName} ${vincitore.familyName} vinse il ` +
+                        `${gara.raceName} del ${gara.season} a ${gara.Circuit.Location.locality}.`,
+                    titolo: gara.raceName,
+                    url: pagina.href,
+                    fonteUrl: `https://api.jolpi.ca/ergast/f1/${gara.season}/${gara.round}/results.json`
+                };
+            }));
+
+            return eventi.filter(Boolean);
+        })();
         cacheEventiStoriciGranPremi.set(chiave, richiesta);
         richiesta.catch(() => cacheEventiStoriciGranPremi.delete(chiave));
     }

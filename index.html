@@ -1,0 +1,240 @@
+
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INF1GHT</title>
+    <link rel="icon" type="img" href="assets/logos/inf1ght_favicon.svg">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header>
+        <img src="assets/logos/Inf1ght.svg" alt="INF1GHT" width="200" height="100" position="absolute" top="10px" left="10px">
+
+        <div class="azioni-header">
+            <nav>
+                <button onclick="cambiaPagina('home')">Home</button>
+                <button onclick="cambiaPagina('classifiche')">Classifiche</button>
+                <button onclick="cambiaPagina('calendario')">Calendario</button>
+                <button onclick="cambiaPagina('simulatore')">Simulatore</button>
+            </nav>
+            <label class="selettore-stagione-header" for="stagione">Stagione</label>
+            <select id="stagione" onchange="aggiornaStagione()" aria-label="Seleziona la stagione">
+                <option>Caricamento...</option>
+            </select>
+            <button id="cambiaTema" type="button" aria-pressed="false">Tema scuro</button>
+        </div>
+    </header>
+
+    <main>
+
+        <section id="home" class="pagina">
+            <h2>Benvenuto su F1 HUB</h2>
+            <p>Il tuo punto di riferimento per la Formula 1.</p>
+            <section class="home-weekend" aria-labelledby="titoloWeekendHome">
+                <div>
+                    <h3 id="titoloWeekendHome">Prossimo weekend</h3>
+                    <p id="dettaglioWeekendHome" role="status">Caricamento calendario...</p>
+                </div>
+                <button id="shortcutWeekendHome" type="button" disabled>Apri weekend</button>
+            </section>
+
+            <section id="sezioneOnThisDay" class="on-this-day" aria-labelledby="titoloOnThisDay" hidden>
+                <h3 id="titoloOnThisDay">Formula 1, oggi nella storia</h3>
+                <div id="eventoOnThisDay" aria-live="polite">
+                    <p>Ricerca di eventi storici...</p>
+                </div>
+                <p id="fonteOnThisDay" class="fonte-dati"></p>
+            </section>
+
+            <div class="riepiloghi-classifica">
+                <section class="riepilogo-classifica">
+                    <h3>Top 3 piloti</h3>
+                    <ol id="topPilotiHome" class="classifica-home">
+                        <li>Caricamento classifica...</li>
+                    </ol>
+                </section>
+                <section class="riepilogo-classifica">
+                    <h3>Top 3 costruttori</h3>
+                    <ol id="topCostruttoriHome" class="classifica-home">
+                        <li>Caricamento classifica...</li>
+                    </ol>
+                </section>
+            </div>
+            <p id="fonteClassificheHome" class="fonte-dati" role="status"></p>
+
+            <section class="notizie-home" aria-labelledby="titoloNotizieHome">
+                <div class="intestazione-notizie">
+                    <h3 id="titoloNotizieHome">Ultime notizie F1</h3>
+                    <button id="aggiornaNotizieHome" type="button">Aggiorna</button>
+                </div>
+                <div id="elencoNotizieHome" class="griglia-notizie" aria-live="polite">
+                    <p>Caricamento notizie...</p>
+                </div>
+                <p id="aggiornamentoNotizieHome" class="aggiornamento-notizie" role="status"></p>
+            </section>
+        </section>
+        <section id="simulatore" class="pagina">
+            <h2>Simulatore mondiale</h2>
+
+            <h3>Pilota da seguire</h3>
+
+            <select id="pilotaDaSeguire">
+                <option value="">Seleziona un pilota</option>
+            </select>
+
+            <h3>Costruttore da seguire</h3>
+            <select id="costruttoreDaSeguire">
+                <option value="">Seleziona un costruttore</option>
+            </select>
+
+            <h3>Proiezione fino a fine stagione</h3>
+
+            <p id="statoSimulatore" role="status">Calcolo della stima...</p>
+
+            <aside class="spiegazione-titolo" aria-labelledby="titoloCertezzaTitolo">
+                <h3 id="titoloCertezzaTitolo">Quando è matematicamente assegnato il titolo piloti?</h3>
+                <ul>
+                    <li>
+                        <strong>Titolo certo per punti:</strong> il leader ha più punti di quanti ogni rivale
+                        possa ancora ottenere. Il massimo residuo considera 25 punti per gara, i punti Sprint
+                        previsti dal regolamento della stagione (fino a 8 dal 2022) e, nelle stagioni 2020–2024,
+                        l'eventuale punto per il giro veloce.
+                    </li>
+                    <li>
+                        <strong>Parità ancora possibile:</strong> se un rivale può raggiungere il leader,
+                        i punti da soli non bastano a dichiarare il titolo. Il campione può essere stabilito
+                        solo se il conteggio degli spareggi lo favorisce: vittorie, poi secondi posti, terzi
+                        posti e così via.
+                    </li>
+                    <li>
+                        <strong>Stagione conclusa:</strong> vince chi ha più punti; a pari punti si applicano
+                        gli stessi spareggi. Le decisioni ufficiali e le eventuali penalità possono modificare
+                        il conteggio.
+                    </li>
+                </ul>
+                <p>La proiezione qui sotto è una stima e non assegna ufficialmente il titolo.</p>
+            </aside>
+
+            <div id="previsioniGara"></div>
+
+            <h3>Classifica stimata a fine stagione</h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Pos.</th>
+                        <th>Pilota</th>
+                        <th>Punti attuali</th>
+                        <th>Punti stimati rimanenti</th>
+                        <th>Totale stimato</th>
+                    </tr>
+                </thead>
+                <tbody id="classificaSimulata"></tbody>
+            </table>
+
+            <h3>Esito della simulazione</h3>
+
+            <p id="esitoSimulazione"></p>
+
+            <h3>Classifica costruttori stimata a fine stagione</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Pos.</th>
+                        <th>Costruttore</th>
+                        <th>Punti attuali</th>
+                        <th>Punti stimati rimanenti</th>
+                        <th>Totale stimato</th>
+                    </tr>
+                </thead>
+                <tbody id="classificaCostruttoriSimulata"></tbody>
+            </table>
+
+            <h3>Esito del costruttore selezionato</h3>
+            <p id="esitoCostruttoreSimulazione"></p>
+        </section>
+        <section id="dettaglioGara" class="pagina">
+            <button onclick="cambiaPagina('calendario')">
+                ← Torna al calendario
+            </button>
+
+            <h2 id="titoloDettaglioGara"></h2>
+
+            <label for="sessioneGara">Sessione:</label>
+            <select id="sessioneGara"></select>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Pos.</th>
+                        <th>Pilota</th>
+                        <th>Scuderia</th>
+                        <th>Tempo / Stato</th>
+                        <th id="intestazionePunti">Punti</th>
+                    </tr>
+                </thead>
+                <tbody id="risultatiGara"></tbody>
+            </table>
+        </section>
+        <section id="schedaPilota" class="pagina">
+            <button id="tornaDaSchedaPilota" type="button">← Torna indietro</button>
+            <h2 id="titoloSchedaPilota"></h2>
+            <div id="contenutoSchedaPilota"></div>
+        </section>
+        <section id="classifiche" class="pagina">
+            <h2>Classifiche</h2>
+            <div class="selettore-classifica" aria-label="Tipo di classifica">
+                <button type="button" onclick="mostraClassifica('piloti')" aria-controls="classificaPiloti">Piloti</button>
+                <button type="button" onclick="mostraClassifica('costruttori')" aria-controls="classificaCostruttori">Costruttori</button>
+            </div>
+
+            <div id="classificaPiloti" class="classifica-panel">
+                <h3>Classifica piloti</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Posizione</th>
+                            <th>Pilota</th>
+                            <th>Scuderia</th>
+                            <th>Punti</th>
+                            <th>Vittorie</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabellaPiloti"></tbody>
+                </table>
+            </div>
+
+            <div id="classificaCostruttori" class="classifica-panel" style="display: none;">
+                <h3>Classifica costruttori</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Posizione</th>
+                            <th>Scuderia</th>
+                            <th>Punti</th>
+                            <th>Vittorie</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabellaCostruttori"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="calendario" class="pagina">
+            <h2>Calendario</h2>
+            <p>Calendario e risultati dei Gran Premi.</p>
+            <p id="fonteCalendario"></p>
+            <div id="listaGare"></div>
+        </section>
+
+    </main>
+
+    <script type="module" src="js/main.js"></script>
+
+</body>
+</html>

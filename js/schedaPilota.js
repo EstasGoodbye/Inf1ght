@@ -2,7 +2,6 @@ import { recuperaDati } from "./api.js";
 import { cambiaPagina } from "./navigazione.js";
 
 const cacheDati = new Map();
-const cacheImmaginiCommons = new Map();
 const immaginiPiloti = new Map([
     ["franco_colapinto", "2026alpinefracol01right.avif"],
     ["pierre_gasly", "2026alpinepiegas01right.avif"],
@@ -28,7 +27,14 @@ const immaginiPiloti = new Map([
     ["isack_hadjar", "2026redbullracingisahad01right.avif"],
     ["max_verstappen", "2026redbullracingmaxver01right.avif"],
     ["alexander_albon", "2026williamsalealb01right.avif"],
-    ["carlos_sainz", "2026williamscarsai01right.avif"]
+    ["carlos_sainz", "2026williamscarsai01right.avif"],
+    ["kevin_magnussen", "Kevin-magnussen.png"],
+    ["nyck_de_vries", "Nyck-de-vries.png"],
+    ["daniel_ricciardo", "daniel-ricciardo.png"],
+    ["jack_doohan", "jack-doohan.png"],
+    ["mick_schumacher", "mick-schumacher.png"],
+    ["guanyu_zhou", "zhou-guanyu.png"],
+    ["zhou_guanyu", "zhou-guanyu.png"]
 ].map(([nome, immagine]) => [normalizzaNome(nome), immagine]));
 const loghiScuderie = new Map([
     ["alpine", "2026alpinelogowhite.avif"],
@@ -44,7 +50,18 @@ const loghiScuderie = new Map([
     ["astonmartin", "2026astonmartinlogowhite.avif"],
     ["williams", "2026williamslogowhite.avif"],
     ["audi", "2026audilogowhite.avif"],
-    ["audif1team", "2026audilogowhite.avif"]
+    ["audif1team", "2026audilogowhite.avif"],
+    ["kicksauber", "Kick-sauber-stake.png"],
+    ["sauber", "Kick-sauber-stake.png"],
+    ["alphatauri", "alphatauri-logo-png_seeklogo-385647.webp"],
+    ["scuderiaalphatauri", "alphatauri-logo-png_seeklogo-385647.webp"],
+    ["alfa", "alfa-romeo-logo.png"],
+    ["alfaromeo", "alfa-romeo-logo.png"],
+    ["alfaromeoracing", "alfa-romeo-logo.png"],
+    ["racingpoint", "Racing-Point-F1-Team-logo-PNG-300x183.webp"],
+    ["racingpointf1team", "Racing-Point-F1-Team-logo-PNG-300x183.webp"],
+    ["renault", "Renault-logo.png"],
+    ["renaultf1team", "Renault-logo.png"]
 ]);
 
 function normalizzaNome(nome) {
@@ -69,106 +86,6 @@ function recuperaDatiInCache(endpoint) {
     return cacheDati.get(endpoint);
 }
 
-function testoMetadato(valore) {
-    return new DOMParser()
-        .parseFromString(valore || "", "text/html")
-        .body.textContent.trim();
-}
-
-function recuperaImmagineCommons(tipo, nome, anno) {
-    const chiave = `${tipo}-${anno}-${normalizzaNome(nome)}`;
-    if (!cacheImmaginiCommons.has(chiave)) {
-        const descrittore = tipo === "logo" ? "Formula One team logo" : "Formula 1 portrait";
-        const query = `${nome} ${descrittore} ${anno}`;
-        const parametri = new URLSearchParams({
-            action: "query",
-            generator: "search",
-            gsrsearch: query,
-            gsrnamespace: "6",
-            gsrwhat: "text",
-            gsrlimit: "10",
-            prop: "imageinfo",
-            iiprop: "url|extmetadata",
-            iiurlwidth: tipo === "logo" ? "300" : "700",
-            format: "json",
-            origin: "*"
-        });
-        const richiesta = fetch(`https://commons.wikimedia.org/w/api.php?${parametri}`)
-            .then(risposta => {
-                if (!risposta.ok) {
-                    throw new Error(`Wikimedia Commons ha risposto con HTTP ${risposta.status}.`);
-                }
-                return risposta.json();
-            })
-            .then(dati => {
-                const nomeNormalizzato = normalizzaNome(nome);
-                const cognome = normalizzaNome(String(nome).trim().split(/\s+/).pop());
-                const pagine = Object.values(dati.query?.pages || {})
-                    .sort((prima, seconda) => prima.index - seconda.index);
-
-                for (const pagina of pagine) {
-                    const titolo = pagina.title || "";
-                    const titoloNormalizzato = normalizzaNome(titolo);
-                    const informazioni = pagina.imageinfo?.[0];
-                    const metadati = informazioni?.extmetadata || {};
-                    const licenza = testoMetadato(metadati.LicenseShortName?.value);
-                    const licenzaLibera = /^(CC0|CC BY(?:-SA)?(?:\s|$)|Public domain)/i.test(licenza);
-                    const fileAdatto = tipo === "logo"
-                        ? /\.svg$/i.test(titolo) &&
-                            titoloNormalizzato.includes(nomeNormalizzato) &&
-                            /logo|emblem|badge/i.test(titolo)
-                        : /\.(jpe?g|png|webp)$/i.test(titolo) &&
-                            titoloNormalizzato.includes(cognome);
-
-                    if (!fileAdatto || !licenzaLibera || !informazioni?.thumburl) {
-                        continue;
-                    }
-
-                    const immagineUrl = new URL(informazioni.thumburl);
-                    const paginaUrl = new URL(informazioni.descriptionurl);
-                    if (
-                        immagineUrl.protocol !== "https:" ||
-                        !["thumb.wikimedia.org", "upload.wikimedia.org"].includes(immagineUrl.hostname) ||
-                        paginaUrl.protocol !== "https:" ||
-                        paginaUrl.hostname !== "commons.wikimedia.org"
-                    ) {
-                        continue;
-                    }
-
-                    const autore = testoMetadato(
-                        metadati.Artist?.value || metadati.Credit?.value
-                    );
-                    if (/^CC BY/i.test(licenza) && !autore) {
-                        continue;
-                    }
-
-                    return {
-                        url: immagineUrl.href,
-                        pagina: paginaUrl.href,
-                        autore: autore || "Wikimedia Commons",
-                        licenza
-                    };
-                }
-
-                return null;
-            });
-        cacheImmaginiCommons.set(chiave, richiesta);
-        richiesta.catch(() => cacheImmaginiCommons.delete(chiave));
-    }
-
-    return cacheImmaginiCommons.get(chiave);
-}
-
-function creaAttribuzioneImmagine(immagine) {
-    const attribuzione = document.createElement("a");
-    attribuzione.className = "attribuzione-immagine";
-    attribuzione.href = immagine.pagina;
-    attribuzione.target = "_blank";
-    attribuzione.rel = "noopener noreferrer";
-    attribuzione.textContent = `${immagine.autore} · ${immagine.licenza}`;
-    return attribuzione;
-}
-
 export function creaElementoScuderia(nome, anno, constructorId = "") {
     const contenitore = document.createElement("span");
     contenitore.className = "scuderia-valore";
@@ -189,25 +106,6 @@ export function creaElementoScuderia(nome, anno, constructorId = "") {
         immagine.title = `Logo ${nome}`;
         immagine.loading = "lazy";
         contenitore.appendChild(immagine);
-    } else if (Number(anno) < 2026 && nome) {
-        recuperaImmagineCommons("logo", nome, anno)
-            .then(risorsa => {
-                if (!risorsa || !contenitore.isConnected) {
-                    return;
-                }
-                const immagine = document.createElement("img");
-                immagine.className = "logo-scuderia";
-                immagine.src = risorsa.url;
-                immagine.alt = "";
-                immagine.title = `Logo ${nome} · ${risorsa.licenza}`;
-                immagine.loading = "lazy";
-                immagine.addEventListener("error", () => immagine.remove(), { once: true });
-                contenitore.insertBefore(immagine, etichetta);
-                contenitore.appendChild(creaAttribuzioneImmagine(risorsa));
-            })
-            .catch(errore => {
-                console.warn(`Impossibile recuperare il logo di ${nome} da Wikimedia Commons:`, errore);
-            });
     }
 
     contenitore.appendChild(etichetta);
@@ -349,29 +247,8 @@ async function apriSchedaPilota(driver, anno, paginaRitorno) {
         ritratto.alt = `${driver.givenName} ${driver.familyName}`;
         ritratto.loading = "lazy";
         layout.appendChild(ritratto);
-    } else if (Number(anno) < 2026) {
-        const ritratto = document.createElement("img");
-        ritratto.className = "ritratto-pilota";
-        ritratto.alt = nomeCompleto;
-        ritratto.loading = "lazy";
-        ritratto.hidden = true;
-        layout.appendChild(ritratto);
-        recuperaImmagineCommons("pilota", nomeCompleto, anno)
-            .then(risorsa => {
-                if (!risorsa || !layout.isConnected) {
-                    ritratto.remove();
-                    return;
-                }
-                ritratto.src = risorsa.url;
-                ritratto.hidden = false;
-                const attribuzione = creaAttribuzioneImmagine(risorsa);
-                attribuzione.classList.add("attribuzione-ritratto");
-                layout.appendChild(attribuzione);
-            })
-            .catch(errore => {
-                console.warn(`Impossibile recuperare la foto di ${nomeCompleto} da Wikimedia Commons:`, errore);
-                ritratto.remove();
-            });
+    } else {
+        layout.classList.add("senza-ritratto");
     }
 
     const statistiche = document.createElement("dl");

@@ -3,7 +3,9 @@ import { creaElementoScuderia } from "./schedaPilota.js";
 import { apriDettaglioGara } from "./calendario.js";
 
 const FEED_NOTIZIE = "https://sport.sky.it/rss/sport.xml";
+const SEZIONE_NOTIZIE_F1 = "https://sport.sky.it/formula-1";
 let timerAggiornamentoNotizie;
+let notizieDisponibili = [];
 const cacheEventiStoriciGranPremi = new Map();
 
 function mostraRigaVuota(lista, testo) {
@@ -86,31 +88,27 @@ function recuperaEventiStoriciGranPremi(mese, giorno) {
 
             const gare = [];
             let offset = Math.floor((totale - 1) / limite) * limite;
-            while (offset > 0) {
-                await new Promise(resolve => window.setTimeout(resolve, 450));
-                const dati = await recuperaDati(
-                    `/races.json?limit=${limite}&offset=${offset}`
-                );
-                if (!dati) {
+            while (offset >= 0 && gare.length < 1) {
+                const offsetPagine = [offset, offset - limite, offset - 2 * limite]
+                    .filter(valore => valore >= 0);
+                const pagine = await Promise.all(offsetPagine.map(valore =>
+                    valore === 0
+                        ? primaPagina
+                        : recuperaDati(`/races.json?limit=${limite}&offset=${valore}`)
+                ));
+                pagine.forEach(dati => {
+                    if (dati) {
+                        gare.push(
+                            ...(dati.RaceTable?.Races || [])
+                                .filter(gara => gara.date?.slice(5) === `${mese}-${giorno}`)
+                        );
+                    }
+                });
+                if (gare.length >= 1) {
                     break;
                 }
 
-                gare.push(
-                    ...(dati.RaceTable?.Races || [])
-                        .filter(gara => gara.date?.slice(5) === `${mese}-${giorno}`)
-                );
-                if (gare.length >= 2) {
-                    break;
-                }
-
-                offset -= limite;
-            }
-
-            if (offset === 0) {
-                gare.push(
-                    ...(primaPagina.RaceTable?.Races || [])
-                        .filter(gara => gara.date?.slice(5) === `${mese}-${giorno}`)
-                );
+                offset -= limite * 3;
             }
             gare.sort((prima, seconda) =>
                 Number(seconda.season) - Number(prima.season)
@@ -370,85 +368,145 @@ async function mostraWeekend(anno) {
     pulsante.onclick = () => apriDettaglioGara(anno, selezionato.gara);
 }
 
+async function recuperaNotizieFeed() {
+    const risposta = await fetch(FEED_NOTIZIE, { cache: "no-store" });
+    if (!risposta.ok) {
+        throw new Error(`Feed Sky Sport non disponibile (HTTP ${risposta.status}).`);
+    }
+
+    const documento = new DOMParser().parseFromString(await risposta.text(), "application/xml");
+    if (documento.querySelector("parsererror")) {
+        throw new Error("Il feed Sky Sport ha restituito XML non valido.");
+    }
+
+    return [...documento.querySelectorAll("item")]
+        .map(notizia => {
+            const url = new URL(notizia.querySelector("link")?.textContent.trim() || "");
+            const data = new Date(notizia.querySelector("pubDate")?.textContent.trim() || "");
+            return {
+                titolo: notizia.querySelector("title")?.textContent.trim(),
+                descrizione: notizia.querySelector("description")?.textContent.trim() || "",
+                url,
+                data
+            };
+        })
+        .filter(notizia =>
+            notizia.titolo &&
+            notizia.url.protocol === "https:" &&
+            notizia.url.hostname === "sport.sky.it" &&
+            notizia.url.pathname.startsWith("/formula-1/")
+        )
+        .sort((prima, seconda) => seconda.data - prima.data)
+}
+
+async function recuperaNotizieSezioneF1() {
+    const risposta = await fetch(SEZIONE_NOTIZIE_F1, { cache: "no-store" });
+    if (!risposta.ok) {
+        throw new Error(`Sezione F1 Sky Sport non disponibile (HTTP ${risposta.status}).`);
+    }
+
+    const documento = new DOMParser().parseFromString(await risposta.text(), "text/html");
+    return [...documento.querySelectorAll("a[href]")]
+        .map(link => {
+            const url = new URL(link.href, SEZIONE_NOTIZIE_F1);
+            const corrispondenzaData = url.pathname.match(
+                /^\/formula-1\/(\d{4})\/(\d{2})\/(\d{2})\//
+            );
+            const orario = link.querySelector("time")?.getAttribute("datetime")
+                ?.match(/(\d{1,2}):(\d{2})/);
+            const titolo = link.querySelector(".c-hero__title, .c-card__title")
+                ?.textContent.trim();
+            if (!corrispondenzaData || !titolo) {
+                return null;
+            }
+
+            return {
+                titolo,
+                descrizione: link.querySelector(".c-hero__abstract, .c-card__abstract")
+                    ?.textContent.trim() || "",
+                url,
+                data: new Date(
+                    Number(corrispondenzaData[1]),
+                    Number(corrispondenzaData[2]) - 1,
+                    Number(corrispondenzaData[3]),
+                    Number(orario?.[1] || 0),
+                    Number(orario?.[2] || 0)
+                )
+            };
+        })
+        .filter(notizia =>
+            notizia &&
+            notizia.url.protocol === "https:" &&
+            notizia.url.hostname === "sport.sky.it"
+        );
+}
+
+function creaSchedeNotizie(notizie) {
+    return notizie.map(notizia => {
+        const scheda = document.createElement("article");
+        scheda.className = "notizia-home notizia-solo-titolo";
+        const titolo = document.createElement("h4");
+        const link = document.createElement("a");
+        link.href = notizia.url.href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = notizia.titolo;
+        titolo.appendChild(link);
+        scheda.appendChild(titolo);
+        return scheda;
+    });
+}
+
+function aggiornaElenchiNotizie(notizie) {
+    document.getElementById("elencoNotizieHome").replaceChildren(
+        ...creaSchedeNotizie(notizie.slice(0, 3))
+    );
+    document.getElementById("elencoNotizieCompleto").replaceChildren(
+        ...creaSchedeNotizie(notizie)
+    );
+    document.getElementById("mostraPiuNotizieHome").hidden = notizie.length <= 3;
+}
+
 async function caricaNotizie() {
     const contenitore = document.getElementById("elencoNotizieHome");
     const aggiornamento = document.getElementById("aggiornamentoNotizieHome");
     try {
-        const risposta = await fetch(FEED_NOTIZIE, { cache: "no-store" });
-        if (!risposta.ok) {
-            throw new Error(`Feed Sky Sport non disponibile (HTTP ${risposta.status}).`);
+        let notizie;
+        try {
+            notizie = await recuperaNotizieFeed();
+        } catch (erroreFeed) {
+            console.warn("Feed generale Sky Sport non disponibile; provo la sezione F1:", erroreFeed);
+            notizie = [];
         }
-
-        const documento = new DOMParser().parseFromString(await risposta.text(), "application/xml");
-        if (documento.querySelector("parsererror")) {
-            throw new Error("Il feed Sky Sport ha restituito XML non valido.");
-        }
-
-        const notizie = [...documento.querySelectorAll("item")]
-            .map(notizia => {
-                const url = new URL(notizia.querySelector("link")?.textContent.trim() || "");
-                const data = new Date(notizia.querySelector("pubDate")?.textContent.trim() || "");
-                return {
-                    titolo: notizia.querySelector("title")?.textContent.trim(),
-                    descrizione: notizia.querySelector("description")?.textContent.trim() || "",
-                    url,
-                    data
-                };
-            })
-            .filter(notizia =>
-                notizia.titolo &&
-                notizia.url.protocol === "https:" &&
-                notizia.url.hostname === "sport.sky.it" &&
-                notizia.url.pathname.startsWith("/formula-1/")
-            )
-            .sort((prima, seconda) => seconda.data - prima.data)
-            .slice(0, 6);
         if (!notizie.length) {
-            throw new Error("Il feed Sky Sport non contiene notizie di Formula 1.");
+            notizie = await recuperaNotizieSezioneF1();
+        }
+        if (!notizie.length) {
+            throw new Error("La sezione Sky Sport non contiene notizie di Formula 1.");
         }
 
-        const schede = notizie.map(notizia => {
-            const scheda = document.createElement("article");
-            scheda.className = "notizia-home";
-            const fonte = document.createElement("span");
-            fonte.className = "fonte-notizia";
-            fonte.textContent = "Sky Sport";
-            const titolo = document.createElement("h4");
-            const link = document.createElement("a");
-            link.href = notizia.url.href;
-            link.target = "_blank";
-            link.rel = "noopener noreferrer";
-            link.textContent = notizia.titolo;
-            titolo.appendChild(link);
-            const descrizione = document.createElement("p");
-            descrizione.textContent = new DOMParser()
-                .parseFromString(notizia.descrizione, "text/html")
-                .body.textContent.trim() || "Leggi la notizia sul sito di Sky Sport.";
-            scheda.append(fonte, titolo, descrizione);
-            if (!Number.isNaN(notizia.data.getTime())) {
-                const pubblicata = document.createElement("time");
-                pubblicata.className = "data-notizia";
-                pubblicata.dateTime = notizia.data.toISOString();
-                pubblicata.textContent = notizia.data.toLocaleString("it-IT", {
-                    dateStyle: "medium",
-                    timeStyle: "short"
-                });
-                scheda.appendChild(pubblicata);
-            }
-            return scheda;
-        });
-        contenitore.replaceChildren(...schede);
-        aggiornamento.textContent =
+        notizieDisponibili = notizie;
+        aggiornaElenchiNotizie(notizieDisponibili);
+        const testoAggiornamento =
             `Fonte: Sky Sport · aggiornato il ${new Date().toLocaleTimeString("it-IT", {
                 hour: "2-digit",
                 minute: "2-digit"
             })}.`;
+        aggiornamento.textContent = testoAggiornamento;
+        document.getElementById("aggiornamentoNotizieCompleto").textContent = testoAggiornamento;
     } catch (errore) {
         console.error("Errore nel caricamento delle notizie Sky Sport:", errore);
-        const messaggio = document.createElement("p");
-        messaggio.textContent = "Notizie F1 momentaneamente non disponibili da Sky Sport.";
-        contenitore.replaceChildren(messaggio);
+        notizieDisponibili = [];
+        const messaggioHome = document.createElement("p");
+        messaggioHome.textContent = "Notizie F1 momentaneamente non disponibili da Sky Sport.";
+        contenitore.replaceChildren(messaggioHome);
+        const messaggioCompleto = document.createElement("p");
+        messaggioCompleto.textContent = messaggioHome.textContent;
+        document.getElementById("elencoNotizieCompleto").replaceChildren(messaggioCompleto);
+        document.getElementById("mostraPiuNotizieHome").hidden = true;
         aggiornamento.textContent = "Impossibile aggiornare il feed Sky Sport.";
+        document.getElementById("aggiornamentoNotizieCompleto").textContent =
+            aggiornamento.textContent;
     }
 }
 

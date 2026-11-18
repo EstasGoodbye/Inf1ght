@@ -113,8 +113,8 @@ function mostraRiferimentoGara(nomiWeekend) {
     const previsioni = document.getElementById("previsioniGara");
     previsioni.textContent = nomiWeekend.length
         ? `Stima basata sulla media degli ultimi ${nomiWeekend.length} weekend disputati ` +
-          `(${nomiWeekend.join(", ")}), includendo i punti sprint quando presenti, ` +
-          `proiettata sui ${weekendRimanenti} weekend rimanenti.`
+            `(${nomiWeekend.join(", ")}), includendo i punti sprint quando presenti, ` +
+            `proiettata sui ${weekendRimanenti} weekend rimanenti.`
         : "Stima non disponibile: non risultano ancora weekend disputati in questa stagione.";
 }
 
@@ -275,7 +275,9 @@ export async function caricaSimulatore(anno) {
 
     mostraRiferimentoGara(weekendUsatiPerLaStima);
     if (weekendCompletati.length === 0) {
-        stato.textContent = `Nessun risultato di gara disponibile per il ${anno}; la stima a fine stagione non è calcolabile.`;
+        stato.textContent =
+            `Nessun risultato di gara disponibile per il ${anno}; ` +
+            "la stima a fine stagione non è calcolabile.";
     } else if (weekendRimanenti === 0) {
         stato.textContent = `La stagione ${anno} risulta conclusa: la classifica stimata coincide con quella attuale.`;
     } else {

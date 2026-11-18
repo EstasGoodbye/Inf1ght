@@ -376,8 +376,6 @@ export async function apriDettaglioGara(anno, gara) {
 
     await caricaRisultatiSessione(anno, gara.round, select.value, gara);
 }
-
-
 async function caricaRisultatiSessione(anno, round, sessione, garaSelezionata) {
     let chiaveSessione = {
         practice1: "FirstPractice",
@@ -445,7 +443,11 @@ async function caricaRisultatiSessione(anno, round, sessione, garaSelezionata) {
     }
 
     if (sessioneFutura) {
-        aggiungiMessaggio(tabella, "Risultati non ancora disponibili: la sessione deve ancora disputarsi.", mostraPunti ? 5 : 4);
+        aggiungiMessaggio(
+            tabella,
+            "Risultati non ancora disponibili: la sessione deve ancora disputarsi.",
+            mostraPunti ? 5 : 4
+        );
         return;
     }
 
